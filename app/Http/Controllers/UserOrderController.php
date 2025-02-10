@@ -2,71 +2,82 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\ProductService;
 use App\Services\UserService;
-use Illuminate\Http\Request;
+use App\Utils\ResponseClass;
+use App\Utils\ErrorClass;
 
 class UserOrderController extends Controller
 {
     protected $userService;
+    protected $productService;
 
-    public function __construct(UserService $userService)
+    public function __construct(UserService $userService, ProductService $productService)
     {
         $this->userService = $userService;
+        $this->productService = $productService;
     }
 
     public function index()
     {
-        return view('user-order.index');
-    }
+        $response = $this->userService->getProductsForIndex();
 
-    public function store(Request $request)
-    {
-        $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|email',
-            'password' => 'required|min:8',
-            'product' => 'required|string|max:255',
-            'duration' => 'required|integer|min:1|max:12',
-        ]);
-
-        try {
-            $response = $this->userService->saveUserOrderData($data);
-
-            return response()->json([
-                'message' => $response['message'],
-                'user' => $response['user'],
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'An error occurred while saving data',
-                'error' => $e->getMessage(),
-            ], 500);
+        if ($response instanceof ResponseClass) {
+            $products = $response->getData();
+            return view('user-order.index', compact('products'));
+        } elseif ($response instanceof ErrorClass) {
+            return $response->sendJsonResponse();
+        } else {
+            return response()->json(['error' => 'Unexpected response type'], 500);
         }
     }
 
-    public function viewData($userId)
+    public function createProduct()
     {
-        try {
-            $user = $this->userService->getUserWithDetails($userId);
-            return view('user-order.view', compact('user'));
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'User not found or an error occurred',
-                'error' => $e->getMessage(),
-            ], 404);
+        $response = $this->productService->createProduct();
+
+        if ($response instanceof ResponseClass || $response instanceof ErrorClass) {
+            return $response->sendJsonResponse();
+        } else {
+            return response()->json(['error' => 'Unexpected response type'], 500);
         }
     }
 
-    public function viewAllData()
+    public function store()
     {
-        try {
-            $users = $this->userService->getAllWithDetails();
-            return view('user-order.view_all', compact('users'));
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'User not found or an error occurred',
-                'error' => $e->getMessage(),
-            ], 404);
+        $response = $this->userService->saveUserOrderData();
+
+        if ($response instanceof ResponseClass || $response instanceof ErrorClass) {
+            return $response->sendJsonResponse();
+        } else {
+            return response()->json(['error' => 'Unexpected response type'], 500);
+        }
+    }
+
+    public function cancelOrder($id)
+    {
+        $response = $this->userService->cancelOrder($id);
+
+        if ($response instanceof ResponseClass || $response instanceof ErrorClass) {
+            return $response->sendJsonResponse();
+        } else {
+            return response()->json(['error' => 'Unexpected response type'], 500);
+        }
+    }
+
+    public function viewData()
+    {
+        $response = $this->userService->getUserWithDetails();
+
+        if ($response instanceof ResponseClass) {
+            $data = $response->getData();
+            $user = $data['user'];
+            $details = $data['groupedData'];
+            return view('user-order.view', compact('user', 'details'));
+        } elseif ($response instanceof ErrorClass) {
+            return $response->sendJsonResponse();
+        } else {
+            return response()->json(['error' => 'Unexpected response type'], 500);
         }
     }
 }
